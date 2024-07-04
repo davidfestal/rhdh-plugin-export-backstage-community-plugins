@@ -1,0 +1,53 @@
+name: Update plugins repository references
+on:
+  workflow_dispatch:
+
+  schedule:
+    - cron: '0 12 * * *'    
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+
+    name: Prepare
+    steps:
+      - name: Use node.js 20.x
+        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
+        with:
+          node-version: 20.x
+          registry-url: https://registry.npmjs.org/ # Needed for auth
+
+      - name: Get published community plugins
+        id: get-published-community-plugins
+        shell: bash
+        run: |
+          json=$(
+            echo -n '['
+            for plugin in $(npm search --json --no-description @backstage-community | jq -r '.[].name')
+            do
+              for version in $(npm view --json ${plugin} versions | jq -r '.[]')
+              do
+                pluginInfo=$(npm view --json @backstage-community/plugin-explore-backend@${version} | jq '. | {name, version, directory: .repository.directory, gitHead }')
+              done
+              workspace=$(echo ${pluginInfo) | jq -r '.directory' | sed -e 's:workspaces/\([^/]*\)/plugins/.*:\1:')
+              gitHead=$(echo ${pluginInfo) | jq -r '.gitHead'
+              backstageVersion=wget https://raw.githubusercontent.com/backstage/community-plugins/gitHead/workspaces/${workspace}/backstage.json | jq -r '.version'
+
+              addedFields="{\"workspace\":\"$workspace\", \"backstageVersion\": \"$backstageVersion\"}"
+              pluginInfo=echo ${pluginInfo} | jq ".+= $addedFields"
+              echo -n "${comma} ${pluginInfo}"
+              comma=','
+            done
+            echo -n ']'
+          )
+          echo "Plugins to analyze:"
+          echo "$json"
+
+          echo "PLUGINS=$json" >> $GITHUB_OUTPUT
+
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+  
