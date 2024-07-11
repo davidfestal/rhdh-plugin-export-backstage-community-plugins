@@ -1,3 +1,4 @@
 plugins/analytics-module-ga:
 plugins/analytics-module-ga4:
 plugins/analytics-module-newrelic-browser:
+plugins/truc-machin:
